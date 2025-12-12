@@ -6,14 +6,6 @@
       "use": "@vercel/node"
     }
   ],
-  "env": {
-    "MONGO_URI": "",
-    "STEAM_API_KEY": "",
-    "STEAM_API_SECRET": "",
-    "JWT_SECRET_KEY": "",
-    "NODE_ENV": "production",
-    "FRONTEND_URL": ""
-  },
   "routes": [
     { "handle": "filesystem" },
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
