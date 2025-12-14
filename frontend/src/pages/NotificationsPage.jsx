@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { acceptFriendRequest, getFriendRequests } from "../lib/api";
 import { BellIcon, ClockIcon, MessageSquareIcon, UserCheckIcon } from "lucide-react";
 import NoNotificationsFound from "../components/NoNotificationsFound";
+import { getCountryFlag, getLanguageFlag } from "../components/FriendCard";
 
 const NotificationsPage = () => {
   const queryClient = useQueryClient();
@@ -18,6 +19,17 @@ const NotificationsPage = () => {
       queryClient.invalidateQueries({ queryKey: ["friends"] });
     },
   });
+
+  const pushRecentlyAdded = (friendId) => {
+    try {
+      const raw = localStorage.getItem("aerosonix_recently_added");
+      const list = raw ? JSON.parse(raw) : [];
+      const next = [{ id: friendId, at: Date.now() }, ...list.filter((x) => x?.id !== friendId)].slice(0, 10);
+      localStorage.setItem("aerosonix_recently_added", JSON.stringify(next));
+    } catch {
+      // ignore
+    }
+  };
 
   const incomingRequests = friendRequests?.incomingReqs || [];
   const acceptedRequests = friendRequests?.acceptedReqs || [];
@@ -56,11 +68,15 @@ const NotificationsPage = () => {
                             <div>
                               <h3 className="font-semibold">{request.sender.fullName}</h3>
                               <div className="flex flex-wrap gap-1.5 mt-1">
+                                {request.sender.country && (
+                                  <span className="badge badge-outline badge-sm">
+                                    {getCountryFlag(request.sender.country)}
+                                    Country: {request.sender.country}
+                                  </span>
+                                )}
                                 <span className="badge badge-secondary badge-sm">
+                                  {getLanguageFlag(request.sender.nativeLanguage)}
                                   Native: {request.sender.nativeLanguage}
-                                </span>
-                                <span className="badge badge-outline badge-sm">
-                                  Learning: {request.sender.learningLanguage}
                                 </span>
                               </div>
                             </div>
@@ -68,7 +84,10 @@ const NotificationsPage = () => {
 
                           <button
                             className="btn btn-primary btn-sm"
-                            onClick={() => acceptRequestMutation(request._id)}
+                            onClick={() => {
+                              pushRecentlyAdded(request.sender?._id);
+                              acceptRequestMutation(request._id);
+                            }}
                             disabled={isPending}
                           >
                             Accept

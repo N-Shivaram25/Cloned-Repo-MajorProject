@@ -7,6 +7,8 @@ import NotificationsPage from "./pages/NotificationsPage.jsx";
 import CallPage from "./pages/CallPage.jsx";
 import ChatPage from "./pages/ChatPage.jsx";
 import OnboardingPage from "./pages/OnboardingPage.jsx";
+import AdminLoginPage from "./pages/AdminLoginPage.jsx";
+import AdminDashboardPage from "./pages/AdminDashboardPage.jsx";
 
 import { Toaster } from "react-hot-toast";
 
@@ -27,6 +29,8 @@ const App = () => {
   return (
     <div className="h-screen" data-theme={theme}>
       <Routes>
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route
           path="/"
           element={

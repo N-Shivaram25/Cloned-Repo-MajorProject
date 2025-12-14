@@ -29,11 +29,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-    learningLanguage: {
+    gender: {
       type: String,
       default: "",
     },
     location: {
+      type: String,
+      default: "",
+    },
+    country: {
       type: String,
       default: "",
     },

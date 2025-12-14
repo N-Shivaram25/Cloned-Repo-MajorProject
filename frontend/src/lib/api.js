@@ -64,3 +64,33 @@ export async function getStreamToken() {
   const response = await axiosInstance.get("/chat/token");
   return response.data;
 }
+
+export async function adminLogin({ adminName, adminPassword }) {
+  const response = await axiosInstance.post("/admin/login", { adminName, adminPassword });
+  return response.data;
+}
+
+export async function adminLogout() {
+  const response = await axiosInstance.post("/admin/logout");
+  return response.data;
+}
+
+export async function getAdminMe() {
+  const response = await axiosInstance.get("/admin/me");
+  return response.data;
+}
+
+export async function getAdminStats() {
+  const response = await axiosInstance.get("/admin/stats");
+  return response.data;
+}
+
+export async function getAdminUsers() {
+  const response = await axiosInstance.get("/admin/users");
+  return response.data;
+}
+
+export async function adminDeleteUser(userId) {
+  const response = await axiosInstance.delete(`/admin/users/${userId}`);
+  return response.data;
+}

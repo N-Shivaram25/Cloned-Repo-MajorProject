@@ -3,10 +3,10 @@ import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 
 export async function signup(req, res) {
-  const { email, password, fullName } = req.body;
+  const { email, password, fullName, gender } = req.body;
 
   try {
-    if (!email || !password || !fullName) {
+    if (!email || !password || !fullName || !gender) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -33,6 +33,7 @@ export async function signup(req, res) {
       fullName,
       password,
       profilePic: randomAvatar,
+      gender,
     });
 
     try {
@@ -108,25 +109,48 @@ export async function onboard(req, res) {
   try {
     const userId = req.user._id;
 
-    const { fullName, bio, nativeLanguage, learningLanguage, location } = req.body;
+    const { fullName, bio, nativeLanguage, gender, location, profilePic } = req.body;
 
-    if (!fullName || !bio || !nativeLanguage || !learningLanguage || !location) {
+    const splitLocation = (value) => {
+      if (!value || typeof value !== "string") return { city: "", country: "" };
+      const parts = value.split(",").map((p) => p.trim());
+      if (parts.length < 2) return { city: "", country: "" };
+      const countryPart = parts[parts.length - 1];
+      const cityPart = parts.slice(0, -1).join(", ");
+      return { city: cityPart, country: countryPart };
+    };
+
+    const { country } = splitLocation(location);
+
+    if (!fullName || !bio || !nativeLanguage || !gender || !location) {
       return res.status(400).json({
         message: "All fields are required",
         missingFields: [
           !fullName && "fullName",
           !bio && "bio",
           !nativeLanguage && "nativeLanguage",
-          !learningLanguage && "learningLanguage",
+          !gender && "gender",
           !location && "location",
         ].filter(Boolean),
+      });
+    }
+
+    if (!country) {
+      return res.status(400).json({
+        message: "Location must be in the format: City, Country",
       });
     }
 
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       {
-        ...req.body,
+        fullName,
+        bio,
+        nativeLanguage,
+        gender,
+        location,
+        country,
+        ...(profilePic ? { profilePic } : {}),
         isOnboarded: true,
       },
       { new: true }

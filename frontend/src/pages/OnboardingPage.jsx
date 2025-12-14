@@ -3,7 +3,7 @@ import useAuthUser from "../hooks/useAuthUser";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { completeOnboarding } from "../lib/api";
-import { LoaderIcon, MapPinIcon, ShipWheelIcon, ShuffleIcon } from "lucide-react";
+import { CameraIcon, LoaderIcon, MapPinIcon, ShipWheelIcon, ShuffleIcon } from "lucide-react";
 import { LANGUAGES } from "../constants";
 
 const OnboardingPage = () => {
@@ -14,7 +14,7 @@ const OnboardingPage = () => {
     fullName: authUser?.fullName || "",
     bio: authUser?.bio || "",
     nativeLanguage: authUser?.nativeLanguage || "",
-    learningLanguage: authUser?.learningLanguage || "",
+    gender: authUser?.gender || "",
     location: authUser?.location || "",
     profilePic: authUser?.profilePic || "",
   });
@@ -90,6 +90,7 @@ const OnboardingPage = () => {
                 onChange={(e) => setFormState({ ...formState, fullName: e.target.value })}
                 className="input input-bordered w-full"
                 placeholder="Your full name"
+                required
               />
             </div>
 
@@ -104,12 +105,12 @@ const OnboardingPage = () => {
                 onChange={(e) => setFormState({ ...formState, bio: e.target.value })}
                 className="textarea textarea-bordered h-24"
                 placeholder="Tell others about yourself and your language learning goals"
+                required
               />
             </div>
 
-            {/* LANGUAGES */}
+            {/* NATIVE LANGUAGE + GENDER */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* NATIVE LANGUAGE */}
               <div className="form-control">
                 <label className="label">
                   <span className="label-text">Native Language</span>
@@ -119,6 +120,7 @@ const OnboardingPage = () => {
                   value={formState.nativeLanguage}
                   onChange={(e) => setFormState({ ...formState, nativeLanguage: e.target.value })}
                   className="select select-bordered w-full"
+                  required
                 >
                   <option value="">Select your native language</option>
                   {LANGUAGES.map((lang) => (
@@ -129,23 +131,20 @@ const OnboardingPage = () => {
                 </select>
               </div>
 
-              {/* LEARNING LANGUAGE */}
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text">Learning Language</span>
+                  <span className="label-text">Gender</span>
                 </label>
                 <select
-                  name="learningLanguage"
-                  value={formState.learningLanguage}
-                  onChange={(e) => setFormState({ ...formState, learningLanguage: e.target.value })}
+                  name="gender"
+                  value={formState.gender}
+                  onChange={(e) => setFormState({ ...formState, gender: e.target.value })}
                   className="select select-bordered w-full"
+                  required
                 >
-                  <option value="">Select language you're learning</option>
-                  {LANGUAGES.map((lang) => (
-                    <option key={`learning-${lang}`} value={lang.toLowerCase()}>
-                      {lang}
-                    </option>
-                  ))}
+                  <option value="">Select your gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
                 </select>
               </div>
             </div>
@@ -164,6 +163,7 @@ const OnboardingPage = () => {
                   onChange={(e) => setFormState({ ...formState, location: e.target.value })}
                   className="input input-bordered w-full pl-10"
                   placeholder="City, Country"
+                  required
                 />
               </div>
             </div>

@@ -12,7 +12,7 @@ export async function getRecommendedUsers(req, res) {
         { _id: { $nin: currentUser.friends } }, // exclude current user's friends
         { isOnboarded: true },
       ],
-    });
+    }).sort({ createdAt: -1 });
     res.status(200).json(recommendedUsers);
   } catch (error) {
     console.error("Error in getRecommendedUsers controller", error.message);
@@ -24,7 +24,7 @@ export async function getMyFriends(req, res) {
   try {
     const user = await User.findById(req.user.id)
       .select("friends")
-      .populate("friends", "fullName profilePic nativeLanguage learningLanguage");
+      .populate("friends", "fullName profilePic nativeLanguage country location");
 
     res.status(200).json(user.friends);
   } catch (error) {
@@ -119,7 +119,7 @@ export async function getFriendRequests(req, res) {
     const incomingReqs = await FriendRequest.find({
       recipient: req.user.id,
       status: "pending",
-    }).populate("sender", "fullName profilePic nativeLanguage learningLanguage");
+    }).populate("sender", "fullName profilePic nativeLanguage country location");
 
     const acceptedReqs = await FriendRequest.find({
       sender: req.user.id,
@@ -138,7 +138,7 @@ export async function getOutgoingFriendReqs(req, res) {
     const outgoingRequests = await FriendRequest.find({
       sender: req.user.id,
       status: "pending",
-    }).populate("recipient", "fullName profilePic nativeLanguage learningLanguage");
+    }).populate("recipient", "fullName profilePic nativeLanguage country location");
 
     res.status(200).json(outgoingRequests);
   } catch (error) {

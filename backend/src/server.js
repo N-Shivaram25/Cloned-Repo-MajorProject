@@ -8,6 +8,7 @@ import fs from "fs";
 import authRoutes from "./routes/auth.route.js";
 import userRoutes from "./routes/user.route.js";
 import chatRoutes from "./routes/chat.route.js";
+import adminRoutes from "./routes/admin.route.js";
 
 import { connectDB } from "./lib/db.js";
 
@@ -75,11 +76,13 @@ app.use(async (req, res, next) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/admin", adminRoutes);
 
 // Also expose non-prefixed routes (useful when frontend points directly at backend base URL)
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/chat", chatRoutes);
+app.use("/admin", adminRoutes);
 
 // Simple public health endpoint for readiness checks
 app.get("/api/health", (req, res) => {

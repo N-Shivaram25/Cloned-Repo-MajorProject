@@ -1,7 +1,7 @@
 import { Link } from "react-router";
-import { LANGUAGE_TO_FLAG } from "../constants";
+import { COUNTRY_TO_FLAG, LANGUAGE_TO_FLAG } from "../constants";
 
-const FriendCard = ({ friend }) => {
+const FriendCard = ({ friend, onMessage }) => {
   return (
     <div className="card bg-base-200 hover:shadow-md transition-shadow">
       <div className="card-body p-4">
@@ -14,17 +14,21 @@ const FriendCard = ({ friend }) => {
         </div>
 
         <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className="badge badge-outline text-xs">
+            {getCountryFlag(friend.country)}
+            Country: {friend.country || ""}
+          </span>
           <span className="badge badge-secondary text-xs">
             {getLanguageFlag(friend.nativeLanguage)}
-            Native: {friend.nativeLanguage}
-          </span>
-          <span className="badge badge-outline text-xs">
-            {getLanguageFlag(friend.learningLanguage)}
-            Learning: {friend.learningLanguage}
+            Native: {friend.nativeLanguage || ""}
           </span>
         </div>
 
-        <Link to={`/chat/${friend._id}`} className="btn btn-outline w-full">
+        <Link
+          to={`/chat/${friend._id}`}
+          className="btn btn-outline w-full"
+          onClick={() => onMessage?.(friend)}
+        >
           Message
         </Link>
       </div>
@@ -49,4 +53,21 @@ export function getLanguageFlag(language) {
     );
   }
   return null;
+}
+
+export function getCountryFlag(country) {
+  if (!country) return null;
+
+  const key = country.toLowerCase().trim();
+  const countryCode = COUNTRY_TO_FLAG[key];
+
+  if (!countryCode) return null;
+
+  return (
+    <img
+      src={`https://flagcdn.com/24x18/${countryCode}.png`}
+      alt={`${country} flag`}
+      className="h-3 mr-1 inline-block"
+    />
+  );
 }
