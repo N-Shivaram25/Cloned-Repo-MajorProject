@@ -128,17 +128,9 @@ export const startOutgoingCallRinging = async ({ chatClient, fromUserId, toUserI
   const callId = parseCallIdFromUrl(callUrl);
   if (!callId) return;
 
+  // Best-effort: avoid extra /users presence queries here to prevent Stream 429.
+  // We'll still ring, but OutgoingCallManager popup will auto-expire after 15s.
   let toUser = { id: toUserId, name: "Friend", image: "" };
-  try {
-    const res = await chatClient.queryUsers({ id: { $in: [toUserId] } }, {}, { presence: true });
-    const u = res?.users?.[0];
-    if (u) {
-      toUser = { id: u.id, name: u.name || "Friend", image: u.image || "" };
-      if (!u.online) return; // only ring when both are online
-    }
-  } catch {
-    return;
-  }
 
   const next = {
     callUrl,

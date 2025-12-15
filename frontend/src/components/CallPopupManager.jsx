@@ -18,7 +18,7 @@ const CallPopupManager = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { authUser } = useAuthUser();
-  const { chatClient, onlineMap } = useStreamChat();
+  const { chatClient, onlineMap, ensureUsersPresence } = useStreamChat();
 
   const [call, setCall] = useState(null);
 
@@ -48,6 +48,24 @@ const CallPopupManager = () => {
   }, [call?.fromUser?.id, onlineMap]);
 
   useEffect(() => {
+    const callerId = call?.fromUser?.id;
+    if (!callerId) return;
+    ensureUsersPresence([callerId]);
+  }, [call?.fromUser?.id, ensureUsersPresence]);
+
+  useEffect(() => {
+    if (!call?.createdAt) return;
+    const ms = Math.max(0, call.createdAt + 15_000 - Date.now());
+    const t = setTimeout(() => persist(null), ms);
+    return () => clearTimeout(t);
+  }, [call?.createdAt]);
+
+  useEffect(() => {
+    if (!call) return;
+    if (isCallerOnline === false) persist(null);
+  }, [isCallerOnline, call]);
+
+  useEffect(() => {
     if (!chatClient || !authUser) return;
 
     const maybeTrigger = async (e) => {
@@ -58,13 +76,13 @@ const CallPopupManager = () => {
       const fromUser = e?.user || e?.message?.user;
       if (!fromUser?.id || fromUser.id === authUser._id) return;
 
+      // only trigger popup if caller is online at send time (best-effort)
       try {
-        const res = await chatClient.queryUsers({ id: { $in: [fromUser.id] } }, {}, { presence: true });
-        const u = res?.users?.[0];
-        if (!u?.online) return; // only trigger popup if caller is online at send time
+        await ensureUsersPresence([fromUser.id]);
       } catch {
-        return;
+        // ignore
       }
+      if (onlineMap?.[fromUser.id] === false) return;
 
       const next = {
         callUrl,
@@ -86,7 +104,7 @@ const CallPopupManager = () => {
       chatClient.off("message.new", maybeTrigger);
       chatClient.off("notification.message_new", maybeTrigger);
     };
-  }, [chatClient, authUser?._id]);
+  }, [chatClient, authUser?._id, ensureUsersPresence, onlineMap]);
 
   const accept = () => {
     const url = call?.callUrl;

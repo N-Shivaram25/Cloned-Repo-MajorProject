@@ -16,6 +16,7 @@ export const StreamChatProvider = ({ authUser, children }) => {
   const connectedUserIdRef = useRef(null);
   const presenceFetchedAtRef = useRef(new Map());
   const presenceInFlightRef = useRef(false);
+  const pendingPresenceIdsRef = useRef(new Set());
 
   const { data: tokenData } = useQuery({
     queryKey: ["streamToken"],
@@ -83,37 +84,47 @@ export const StreamChatProvider = ({ authUser, children }) => {
   }, [chatClient]);
 
   const ensureUsersPresence = async (userIds) => {
+    let fetched = null;
     try {
-      if (!chatClient) return;
-      if (presenceInFlightRef.current) return;
+      if (!chatClient) return null;
 
       const now = Date.now();
       const ids = [...new Set((userIds || []).filter(Boolean))];
-      if (ids.length === 0) return;
+      if (ids.length === 0) return null;
 
-      const staleMs = 20_000;
-      const toFetch = ids.filter((id) => {
+      const staleMs = 60_000;
+      ids.forEach((id) => {
         const last = presenceFetchedAtRef.current.get(id) || 0;
-        return now - last > staleMs;
+        if (now - last > staleMs) pendingPresenceIdsRef.current.add(id);
       });
 
-      if (toFetch.length === 0) return;
+      if (presenceInFlightRef.current) return null;
+      if (pendingPresenceIdsRef.current.size === 0) return null;
 
       // Stream rate limits: keep batches small
-      const batch = toFetch.slice(0, 25);
+      const batch = Array.from(pendingPresenceIdsRef.current).slice(0, 25);
+      if (batch.length === 0) return null;
 
       presenceInFlightRef.current = true;
       const res = await chatClient.queryUsers({ id: { $in: batch } }, {}, { presence: true });
+
       const next = {};
       res?.users?.forEach((u) => {
         next[u.id] = Boolean(u.online);
         presenceFetchedAtRef.current.set(u.id, now);
       });
+
+      batch.forEach((id) => pendingPresenceIdsRef.current.delete(id));
+      fetched = next;
       setOnlineMap((prev) => ({ ...prev, ...next }));
+      return next;
     } catch {
-      // ignore
+      return null;
     } finally {
       presenceInFlightRef.current = false;
+      if (fetched && Object.keys(fetched).length > 0) {
+        return fetched;
+      }
     }
   };
 

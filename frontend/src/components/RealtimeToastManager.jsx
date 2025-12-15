@@ -27,7 +27,7 @@ const toastCard = ({ title, subtitle, image, right }) => (
 
 const RealtimeToastManager = () => {
   const { authUser } = useAuthUser();
-  const { chatClient } = useStreamChat();
+  const { chatClient, ensureUsersPresence, onlineMap } = useStreamChat();
 
   const seenFriendReqIdsRef = useRef(new Set());
   const hydratedFriendReqsRef = useRef(false);
@@ -57,10 +57,11 @@ const RealtimeToastManager = () => {
         // Only show popup if sender is online at this moment
         (async () => {
           try {
-            if (!chatClient) return;
-            const res = await chatClient.queryUsers({ id: { $in: [sender._id] } }, {}, { presence: true });
-            const u = res?.users?.[0];
-            if (!u?.online) return;
+            const fetched = await ensureUsersPresence([sender._id]);
+            const isOnline = (fetched && typeof fetched[sender._id] !== "undefined")
+              ? Boolean(fetched[sender._id])
+              : Boolean(onlineMap?.[sender._id]);
+            if (!isOnline) return;
           } catch {
             return;
           }
@@ -92,9 +93,11 @@ const RealtimeToastManager = () => {
       if (fromUser.id === authUser._id) return;
 
       try {
-        const res = await chatClient.queryUsers({ id: { $in: [fromUser.id] } }, {}, { presence: true });
-        const u = res?.users?.[0];
-        if (!u?.online) return;
+        const fetched = await ensureUsersPresence([fromUser.id]);
+        const isOnline = (fetched && typeof fetched[fromUser.id] !== "undefined")
+          ? Boolean(fetched[fromUser.id])
+          : Boolean(onlineMap?.[fromUser.id]);
+        if (!isOnline) return;
       } catch {
         return;
       }
@@ -118,7 +121,7 @@ const RealtimeToastManager = () => {
     return () => {
       chatClient.off("notification.message_new", handler);
     };
-  }, [chatClient, authUser?._id]);
+  }, [chatClient, authUser?._id, ensureUsersPresence, onlineMap]);
 
   return null;
 };

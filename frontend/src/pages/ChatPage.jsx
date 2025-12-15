@@ -86,18 +86,20 @@ const ChatPage = () => {
     <div className="h-[calc(100vh-4rem)] overflow-hidden">
       <Chat client={chatClient}>
         <Channel channel={channel}>
-          <div className="w-full relative">
-            <div className="flex items-center justify-between gap-3 p-3 border-b bg-base-200">
+          <div className="w-full h-full flex flex-col min-h-0">
+            <div className="flex items-center justify-between gap-3 p-3 border-b bg-base-200 sticky top-0 z-20">
               <Link to="/" className="btn btn-outline btn-sm">
                 Back
               </Link>
               <CallButton handleVideoCall={handleVideoCall} />
             </div>
-            <Window>
-              <ChannelHeader />
-              <MessageList />
-              <MessageInput focus />
-            </Window>
+            <div className="flex-1 min-h-0">
+              <Window>
+                <ChannelHeader />
+                <MessageList />
+                <MessageInput focus />
+              </Window>
+            </div>
           </div>
           <Thread />
         </Channel>
