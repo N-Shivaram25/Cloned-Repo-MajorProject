@@ -30,6 +30,8 @@ const CallPage = () => {
   const [call, setCall] = useState(null);
   const [isConnecting, setIsConnecting] = useState(true);
 
+  const navigate = useNavigate();
+
   const { authUser, isLoading } = useAuthUser();
 
   const { data: tokenData } = useQuery({
@@ -39,8 +41,12 @@ const CallPage = () => {
   });
 
   useEffect(() => {
+    let cancelled = false;
+    let localClient;
+    let localCall;
+
     const initCall = async () => {
-      if (!tokenData.token || !authUser || !callId) return;
+      if (!tokenData?.token || !authUser || !callId) return;
 
       try {
         console.log("Initializing Stream video client...");
@@ -51,29 +57,43 @@ const CallPage = () => {
           image: authUser.profilePic,
         };
 
-        const videoClient = new StreamVideoClient({
+        localClient = new StreamVideoClient({
           apiKey: STREAM_API_KEY,
           user,
           token: tokenData.token,
         });
 
-        const callInstance = videoClient.call("default", callId);
+        localCall = localClient.call("default", callId);
+        await localCall.join({ create: true });
 
-        await callInstance.join({ create: true });
+        if (cancelled) return;
 
         console.log("Joined call successfully");
-
-        setClient(videoClient);
-        setCall(callInstance);
+        setClient(localClient);
+        setCall(localCall);
       } catch (error) {
         console.error("Error joining call:", error);
         toast.error("Could not join the call. Please try again.");
       } finally {
-        setIsConnecting(false);
+        if (!cancelled) setIsConnecting(false);
       }
     };
 
     initCall();
+
+    return () => {
+      cancelled = true;
+      try {
+        localCall?.leave();
+      } catch {
+        // ignore
+      }
+      try {
+        localClient?.disconnectUser?.();
+      } catch {
+        // ignore
+      }
+    };
   }, [tokenData, authUser, callId]);
 
   if (isLoading || isConnecting) return <PageLoader />;
@@ -120,7 +140,13 @@ const CallContent = () => {
 
   const navigate = useNavigate();
 
-  if (callingState === CallingState.LEFT) return navigate("/");
+  useEffect(() => {
+    if (callingState === CallingState.LEFT) {
+      navigate("/");
+    }
+  }, [callingState, navigate]);
+
+  if (callingState === CallingState.LEFT) return null;
 
   return (
     <StreamTheme>

@@ -92,7 +92,11 @@ const ProfilePage = () => {
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
     onError: (error) => {
-      toast.error(error?.response?.data?.message || error?.message || "Could not upload voice");
+      const apiMessage = error?.response?.data?.message;
+      const details = error?.response?.data?.details;
+      const detailsText =
+        typeof details === "string" ? details : details?.detail || details?.message || details?.error;
+      toast.error(detailsText || apiMessage || error?.message || "Could not upload voice");
     },
   });
 
@@ -122,7 +126,22 @@ const ProfilePage = () => {
       setRecordSeconds(0);
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+
+      const preferredTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+      ];
+
+      const mimeType = preferredTypes.find((t) => {
+        try {
+          return MediaRecorder.isTypeSupported(t);
+        } catch {
+          return false;
+        }
+      });
+
+      const rec = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       setRecorder(rec);
 
       const chunks = [];
@@ -136,7 +155,7 @@ const ProfilePage = () => {
         } catch {
           // ignore
         }
-        const blob = new Blob(chunks, { type: "audio/webm" });
+        const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
         setRecordedBlob(blob);
         setIsRecording(false);
       };
