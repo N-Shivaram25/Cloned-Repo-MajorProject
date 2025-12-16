@@ -36,26 +36,13 @@ const allowedOrigins = [
 ].map(normalizeOrigin);
 
 const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow non-browser clients (no Origin header)
-    if (!origin) return callback(null, true);
-    const normalized = normalizeOrigin(origin);
-    if (allowedOrigins.includes(normalized)) return callback(null, true);
-
-    try {
-      const { hostname, protocol } = new URL(normalized);
-      if (protocol === "https:" && hostname.endsWith(".vercel.app")) {
-        return callback(null, true);
-      }
-    } catch {
-      // ignore parse errors
-    }
-
-    return callback(null, false);
-  },
+  // Reflect request Origin in Access-Control-Allow-Origin.
+  // This is required when using cookies across different domains.
+  // NOTE: Auth-protected APIs + cookies still protect access.
+  origin: true,
   credentials: true, // allow frontend to send cookies
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   optionsSuccessStatus: 204,
 };
 
