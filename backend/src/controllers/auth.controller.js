@@ -59,7 +59,7 @@ export async function signup(req, res) {
       secure: isProd,
     });
 
-    res.status(201).json({ success: true, user: newUser });
+    res.status(201).json({ success: true, user: newUser, token });
   } catch (error) {
     console.log("Error in signup controller", error);
     res.status(500).json({ message: "Internal Server Error" });
@@ -92,7 +92,7 @@ export async function login(req, res) {
       secure: isProd2,
     });
 
-    res.status(200).json({ success: true, user });
+    res.status(200).json({ success: true, user, token });
   } catch (error) {
     console.log("Error in login controller", error.message);
     res.status(500).json({ message: "Internal Server Error" });

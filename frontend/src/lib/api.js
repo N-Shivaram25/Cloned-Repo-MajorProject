@@ -2,15 +2,32 @@ import { axiosInstance } from "./axios";
 
 export const signup = async (signupData) => {
   const response = await axiosInstance.post("/auth/signup", signupData);
+  try {
+    const token = response?.data?.token;
+    if (token) localStorage.setItem("aerosonix_token", token);
+  } catch {
+    // ignore
+  }
   return response.data;
 };
 
 export const login = async (loginData) => {
   const response = await axiosInstance.post("/auth/login", loginData);
+  try {
+    const token = response?.data?.token;
+    if (token) localStorage.setItem("aerosonix_token", token);
+  } catch {
+    // ignore
+  }
   return response.data;
 };
 export const logout = async () => {
   const response = await axiosInstance.post("/auth/logout");
+  try {
+    localStorage.removeItem("aerosonix_token");
+  } catch {
+    // ignore
+  }
   return response.data;
 };
 

@@ -10,3 +10,16 @@ export const axiosInstance = axios.create({
   baseURL: BASE_URL,
   withCredentials: true, // send cookies with the request
 });
+
+axiosInstance.interceptors.request.use((config) => {
+  try {
+    const token = localStorage.getItem("aerosonix_token");
+    if (token) {
+      config.headers = config.headers || {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {
+    // ignore
+  }
+  return config;
+});

@@ -84,7 +84,8 @@ const ProfilePage = () => {
   const { mutate: uploadVoiceMutation, isPending: uploadingVoice } = useMutation({
     mutationFn: cloneVoice,
     onSuccess: (data) => {
-      const next = data?.voiceId || "";
+      const nextRaw = data?.voiceId;
+      const next = typeof nextRaw === "string" ? nextRaw : nextRaw ? String(nextRaw) : "";
       setVoiceId(next);
       setVoiceUploadPct(0);
       setRecordedBlob(null);
@@ -92,11 +93,15 @@ const ProfilePage = () => {
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
     onError: (error) => {
+      if (error?.response?.status === 401) {
+        toast.error("Unauthorized. Please login again.");
+        return;
+      }
       const apiMessage = error?.response?.data?.message;
       const details = error?.response?.data?.details;
       const detailsText =
         typeof details === "string" ? details : details?.detail || details?.message || details?.error;
-      toast.error(detailsText || apiMessage || error?.message || "Could not upload voice");
+      toast.error(String(detailsText || apiMessage || error?.message || "Could not upload voice"));
     },
   });
 
@@ -289,7 +294,7 @@ const ProfilePage = () => {
                 Record your voice (Minimum 30 seconds, Maximum 1 Minute). No background noise.
               </div>
               <div className="text-sm opacity-70">
-                Current Voice ID: {voiceId ? voiceId : "Not uploaded"}
+                Current Voice ID: {voiceId ? String(voiceId) : "Not uploaded"}
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
