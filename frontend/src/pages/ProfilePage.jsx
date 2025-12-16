@@ -22,10 +22,12 @@ const ProfilePage = () => {
   const { authUser } = useAuthUser();
   const { logoutMutation, isPending: isLoggingOut } = useLogout();
 
-  const [voiceFile, setVoiceFile] = useState(null);
   const [voiceUploadPct, setVoiceUploadPct] = useState(0);
   const [voiceId, setVoiceId] = useState("");
-  const [voiceDurationSec, setVoiceDurationSec] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const [recorder, setRecorder] = useState(null);
+  const [recordedBlob, setRecordedBlob] = useState(null);
 
   const [formState, setFormState] = useState({
     fullName: "",
@@ -84,9 +86,9 @@ const ProfilePage = () => {
     onSuccess: (data) => {
       const next = data?.voiceId || "";
       setVoiceId(next);
-      setVoiceFile(null);
       setVoiceUploadPct(0);
-      toast.success("Voice uploaded and cloned successfully");
+      setRecordedBlob(null);
+      toast.success("Voice ID Created");
       queryClient.invalidateQueries({ queryKey: ["authUser"] });
     },
     onError: (error) => {
@@ -106,18 +108,81 @@ const ProfilePage = () => {
     saveMutation(formState);
   };
 
-  const handleVoiceUpload = async () => {
-    if (!voiceFile) {
-      return toast.error("Please select an audio file");
+  const stopRecording = () => {
+    try {
+      recorder?.stop();
+    } catch {
+      // ignore
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      setRecordedBlob(null);
+      setRecordSeconds(0);
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      setRecorder(rec);
+
+      const chunks = [];
+      rec.ondataavailable = (e) => {
+        if (e?.data && e.data.size > 0) chunks.push(e.data);
+      };
+
+      rec.onstop = () => {
+        try {
+          stream.getTracks().forEach((t) => t.stop());
+        } catch {
+          // ignore
+        }
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        setRecordedBlob(blob);
+        setIsRecording(false);
+      };
+
+      setIsRecording(true);
+      rec.start(250);
+    } catch (err) {
+      toast.error(err?.message || "Microphone permission denied");
+    }
+  };
+
+  useEffect(() => {
+    if (!isRecording) return;
+
+    const id = setInterval(() => {
+      setRecordSeconds((s) => {
+        const next = s + 1;
+        if (next >= 60) {
+          try {
+            stopRecording();
+          } catch {
+            // ignore
+          }
+        }
+        return next;
+      });
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [isRecording]);
+
+  const handleCreateVoiceId = async () => {
+    if (isRecording) return;
+
+    if (!recordedBlob) {
+      toast.error("Please record your voice first");
+      return;
     }
 
-    const okTypes = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/aac"];
-    if (voiceFile?.type && !okTypes.includes(voiceFile.type)) {
-      return toast.error("Please upload .mp3, .wav, or .m4a");
+    if (recordSeconds < 30) {
+      toast.error("Minimum recording duration is 30 seconds");
+      return;
     }
 
     uploadVoiceMutation({
-      file: voiceFile,
+      audio: recordedBlob,
       onUploadProgress: (evt) => {
         const total = evt?.total || 0;
         const loaded = evt?.loaded || 0;
@@ -202,67 +267,45 @@ const ProfilePage = () => {
             <div className="space-y-3">
               <div className="text-lg font-semibold">Voice Cloning</div>
               <div className="text-sm opacity-70">
-                Please upload at least 1 minute of your own voice. No background noise.
+                Record your voice (Minimum 30 seconds, Maximum 1 Minute). No background noise.
               </div>
               <div className="text-sm opacity-70">
                 Current Voice ID: {voiceId ? voiceId : "Not uploaded"}
               </div>
 
-              <input
-                type="file"
-                accept=".mp3,.wav,.m4a,audio/*"
-                className="file-input file-input-bordered w-full"
-                onChange={(e) => {
-                  const file = e.target.files?.[0] || null;
-                  if (!file) {
-                    setVoiceFile(null);
-                    setVoiceDurationSec(null);
-                    return;
-                  }
-
-                  const url = URL.createObjectURL(file);
-                  const audio = document.createElement("audio");
-                  audio.preload = "metadata";
-                  audio.src = url;
-                  audio.onloadedmetadata = () => {
-                    const d = Number(audio.duration);
-                    URL.revokeObjectURL(url);
-                    setVoiceDurationSec(Number.isFinite(d) ? d : null);
-                    if (Number.isFinite(d) && d < 60) {
-                      toast.error("Please upload at least 1 minute of your own voice. No background noise.");
-                      setVoiceFile(null);
-                      return;
-                    }
-                    setVoiceFile(file);
-                  };
-                  audio.onerror = () => {
-                    URL.revokeObjectURL(url);
-                    setVoiceDurationSec(null);
-                    setVoiceFile(file);
-                  };
-                }}
-                disabled={uploadingVoice}
-              />
-
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <button
                   type="button"
-                  className="btn btn-primary"
-                  onClick={handleVoiceUpload}
+                  className={`btn ${isRecording ? "btn-error" : "btn-primary"}`}
+                  onClick={() => {
+                    if (isRecording) return stopRecording();
+                    return startRecording();
+                  }}
                   disabled={uploadingVoice}
+                >
+                  {isRecording ? "Stop Recording" : "Live Voice Recording"}
+                </button>
+
+                <div className="text-sm opacity-70">Recorded: {recordSeconds}s</div>
+
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={handleCreateVoiceId}
+                  disabled={uploadingVoice || isRecording}
                 >
                   {uploadingVoice ? (
                     <>
                       <LoaderIcon className="animate-spin size-5 mr-2" />
-                      Uploading...
+                      Creating...
                     </>
                   ) : (
-                    "Upload Voice"
+                    "Create Voice ID"
                   )}
                 </button>
 
                 {uploadingVoice ? (
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-[180px]">
                     <progress className="progress progress-primary w-full" value={voiceUploadPct} max="100" />
                     <div className="text-xs opacity-70 mt-1">{voiceUploadPct}%</div>
                   </div>

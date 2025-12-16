@@ -110,9 +110,16 @@ export async function getMyVoiceProfile() {
   return response.data;
 }
 
-export async function cloneVoice({ file, onUploadProgress }) {
+export async function cloneVoice({ audio, onUploadProgress }) {
   const form = new FormData();
-  form.append("files", file);
+  if (!audio) throw new Error("audio is required");
+
+  // Support both File and Blob
+  if (audio instanceof File) {
+    form.append("files", audio);
+  } else {
+    form.append("files", audio, "voice.webm");
+  }
   form.append("name", "Aerosonix Voice");
   const response = await axiosInstance.post("/profile/clone-voice", form, {
     headers: { "Content-Type": "multipart/form-data" },
