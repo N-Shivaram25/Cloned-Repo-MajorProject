@@ -164,6 +164,8 @@ const TranslationControls = () => {
   const participants = useParticipants();
   const { speaker } = useSpeakerState();
 
+  const mutedSessionIdsRef = useRef(new Set());
+
   const [enabled, setEnabled] = useState(false);
   const [targetLanguage, setTargetLanguage] = useState("english");
 
@@ -174,13 +176,30 @@ const TranslationControls = () => {
   }, [authUser]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!speaker) return;
+
+    if (!enabled) {
+      if (mutedSessionIdsRef.current.size === 0) return;
+      for (const sessionId of mutedSessionIdsRef.current) {
+        try {
+          speaker.setParticipantVolume(sessionId, undefined);
+        } catch {
+          // ignore
+        }
+      }
+      mutedSessionIdsRef.current.clear();
+      return;
+    }
 
     // Mute other participants to prevent echo / double audio.
     for (const p of participants || []) {
       if (!p || p.isLocalParticipant) continue;
+      if (!p.sessionId) continue;
+      if (mutedSessionIdsRef.current.has(p.sessionId)) continue;
+
       try {
         speaker.setParticipantVolume(p.sessionId, 0);
+        mutedSessionIdsRef.current.add(p.sessionId);
       } catch {
         // ignore
       }
@@ -188,18 +207,23 @@ const TranslationControls = () => {
   }, [enabled, participants, speaker]);
 
   useEffect(() => {
-    if (!enabled) {
-      // restore volumes
-      for (const p of participants || []) {
-        if (!p || p.isLocalParticipant) continue;
+    return () => {
+      if (!speaker) return;
+      if (mutedSessionIdsRef.current.size === 0) return;
+      for (const sessionId of mutedSessionIdsRef.current) {
         try {
-          speaker.setParticipantVolume(p.sessionId, undefined);
+          speaker.setParticipantVolume(sessionId, undefined);
         } catch {
           // ignore
         }
       }
-      return;
-    }
+      mutedSessionIdsRef.current.clear();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
 
     let stopped = false;
     const recorders = new Map();
