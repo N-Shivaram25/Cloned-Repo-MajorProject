@@ -12,6 +12,7 @@ import AdminDashboardPage from "./pages/AdminDashboardPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import FriendsPage from "./pages/FriendsPage.jsx";
 import ParticipantsPage from "./pages/ParticipantsPage.jsx";
+import AiRobotPage from "./pages/AiRobotPage.jsx";
 
 import { Toaster } from "react-hot-toast";
 
@@ -106,6 +107,19 @@ const App = () => {
           isAuthenticated && isOnboarded ? (
             <Layout showSidebar={true}>
               <ProfilePage />
+            </Layout>
+          ) : (
+            <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />
+          )
+        }
+      />
+
+      <Route
+        path="/ai-robot"
+        element={
+          isAuthenticated && isOnboarded ? (
+            <Layout showSidebar={true}>
+              <AiRobotPage />
             </Layout>
           ) : (
             <Navigate to={!isAuthenticated ? "/login" : "/onboarding"} />

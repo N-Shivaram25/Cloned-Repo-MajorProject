@@ -175,3 +175,57 @@ export async function callTts({ text, speakerUserId }) {
   );
   return response;
 }
+
+export async function getAiRobotVoices() {
+  const response = await axiosInstance.get("/ai-robot/voices");
+  return response.data;
+}
+
+export async function uploadAiRobotVoice({ voiceName, audioFiles }) {
+  const form = new FormData();
+  form.append("voiceName", voiceName);
+  (audioFiles || []).forEach((f) => {
+    form.append("audioFiles", f);
+  });
+  const response = await axiosInstance.post("/ai-robot/voices/upload", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}
+
+export async function renameAiRobotVoice({ voiceId, voiceName }) {
+  const response = await axiosInstance.put(`/ai-robot/voices/${voiceId}`, { voiceName });
+  return response.data;
+}
+
+export async function getAiRobotHistory({ module }) {
+  const response = await axiosInstance.get("/ai-robot/history", {
+    params: { module },
+  });
+  return response.data;
+}
+
+export async function aiRobotStt({ audioBlob }) {
+  const form = new FormData();
+  form.append("audio", audioBlob, "audio.webm");
+  const response = await axiosInstance.post("/ai-robot/stt", form, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}
+
+export async function aiRobotSendMessage({ message, module, language }) {
+  const response = await axiosInstance.post("/ai-robot/message", { message, module, language });
+  return response.data;
+}
+
+export async function aiRobotTts({ text, voiceId }) {
+  const response = await axiosInstance.post(
+    "/ai-robot/tts",
+    { text, voiceId },
+    {
+      responseType: "arraybuffer",
+    }
+  );
+  return response.data;
+}

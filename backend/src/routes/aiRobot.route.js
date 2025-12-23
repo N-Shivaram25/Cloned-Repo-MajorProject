@@ -1,0 +1,28 @@
+import express from "express";
+import multer from "multer";
+import { protectRoute } from "../middleware/auth.middleware.js";
+import {
+  getHistory,
+  getVoices,
+  renameVoice,
+  sendMessage,
+  stt,
+  tts,
+  uploadVoice,
+} from "../controllers/aiRobot.controller.js";
+
+const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.use(protectRoute);
+
+router.get("/voices", getVoices);
+router.post("/voices/upload", upload.array("audioFiles", 10), uploadVoice);
+router.put("/voices/:voiceId", renameVoice);
+
+router.get("/history", getHistory);
+router.post("/message", sendMessage);
+router.post("/stt", upload.single("audio"), stt);
+router.post("/tts", tts);
+
+export default router;

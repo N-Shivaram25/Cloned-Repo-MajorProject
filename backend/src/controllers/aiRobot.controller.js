@@ -1,0 +1,380 @@
+import AiRobotVoice from "../models/AiRobotVoice.js";
+import AiRobotHistory from "../models/AiRobotHistory.js";
+import { getElevenLabsClient } from "../lib/elevenlabsClient.js";
+import { getOpenAIClient } from "../lib/openaiClient.js";
+
+const DEFAULT_MODULE = "general";
+
+const normalizeModule = (value) => {
+  const v = String(value || "").trim().toLowerCase();
+  if (!v) return DEFAULT_MODULE;
+  const allowed = new Set([
+    "general",
+    "interview",
+    "english_fluency",
+    "language_learning",
+    "programming",
+  ]);
+  return allowed.has(v) ? v : DEFAULT_MODULE;
+};
+
+const buildSystemPrompt = ({ module, language }) => {
+  const lang = String(language || "").trim();
+  const langClause = lang ? `Respond in ${lang}.` : "Respond in the same language as the user.";
+
+  if (module === "interview") {
+    return `You are AI Robot, an interview coach. Ask realistic interview questions, follow up based on the user's answers, and give concise feedback and improvement tips. ${langClause}`;
+  }
+  if (module === "english_fluency") {
+    return `You are AI Robot, an English fluency coach. Help the user speak clearly and naturally. Correct grammar gently, suggest better phrasing, and ask short follow-up questions to keep them speaking. ${langClause}`;
+  }
+  if (module === "language_learning") {
+    return `You are AI Robot, a language tutor. Teach step-by-step with examples, short exercises, and quick corrections. Keep responses concise and interactive. ${langClause}`;
+  }
+  if (module === "programming") {
+    return `You are AI Robot, a programming mentor. Ask clarifying questions, propose clean solutions, and explain concepts clearly. When giving code, keep it minimal and correct. ${langClause}`;
+  }
+
+  return `You are AI Robot, a helpful assistant. ${langClause}`;
+};
+
+const getDefaultVoices = () => {
+  const male = process.env.MALE_VOICE_ID || "";
+  const female = process.env.FEMALE_VOICE_ID || "";
+
+  const defaults = [];
+  if (male) defaults.push({ voiceId: male, voiceName: "Default Male", isDefault: true });
+  if (female) defaults.push({ voiceId: female, voiceName: "Default Female", isDefault: true });
+
+  return defaults;
+};
+
+const isDefaultVoiceId = (voiceId) => {
+  const defaults = getDefaultVoices();
+  return defaults.some((v) => v.voiceId === voiceId);
+};
+
+export async function getVoices(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const userVoices = await AiRobotVoice.find({ userId })
+      .select("voiceId voiceName createdAt")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      voices: [...getDefaultVoices(), ...userVoices.map((v) => ({
+        voiceId: v.voiceId,
+        voiceName: v.voiceName,
+        createdAt: v.createdAt,
+        isDefault: false,
+      }))],
+    });
+  } catch (error) {
+    console.error("Error in getVoices controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function uploadVoice(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const voiceName = String(req.body?.voiceName || req.body?.name || "").trim();
+    if (!voiceName) {
+      return res.status(400).json({ message: "voiceName is required" });
+    }
+
+    const files = req.files || [];
+    if (!files.length) {
+      return res.status(400).json({ message: "Voice file(s) are required" });
+    }
+
+    const removeBackgroundNoise = String(req.body?.remove_background_noise || "false") === "true";
+    const description = String(req.body?.description || "").trim();
+
+    let voiceId;
+
+    try {
+      const elevenlabs = getElevenLabsClient();
+      const blobs = files.map((f) => new Blob([f.buffer], { type: f.mimetype || "audio/webm" }));
+      const created = await elevenlabs.voices.ivc.create({
+        name: voiceName,
+        files: blobs,
+        remove_background_noise: removeBackgroundNoise,
+        description: description || undefined,
+      });
+      voiceId = created?.voiceId || created?.voice_id;
+    } catch (sdkError) {
+      const apiKeyFallback = process.env.ELEVENLABS_API_KEY;
+      if (!apiKeyFallback) return res.status(500).json({ message: "ELEVENLABS_API_KEY is not set" });
+
+      const form = new FormData();
+      form.append("name", voiceName);
+      if (description) form.append("description", description);
+      form.append("remove_background_noise", String(removeBackgroundNoise));
+
+      for (const f of files) {
+        const blob = new Blob([f.buffer], { type: f.mimetype || "audio/webm" });
+        form.append("files", blob, f.originalname || "voice.webm");
+      }
+
+      const elevenRes = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+        method: "POST",
+        headers: {
+          "xi-api-key": apiKeyFallback,
+        },
+        body: form,
+      });
+
+      const raw = await elevenRes.text();
+      let json;
+      try {
+        json = raw ? JSON.parse(raw) : null;
+      } catch {
+        json = null;
+      }
+
+      if (!elevenRes.ok) {
+        return res.status(elevenRes.status).json({
+          message: "ElevenLabs voice cloning failed",
+          details: json || raw,
+        });
+      }
+
+      voiceId = json?.voice_id;
+    }
+
+    if (!voiceId) {
+      return res.status(500).json({ message: "Voice cloning failed" });
+    }
+
+    const createdVoice = await AiRobotVoice.create({
+      userId,
+      voiceName,
+      voiceId,
+    });
+
+    return res.status(201).json({
+      success: true,
+      voice: {
+        voiceId: createdVoice.voiceId,
+        voiceName: createdVoice.voiceName,
+        createdAt: createdVoice.createdAt,
+      },
+    });
+  } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({ message: "Voice already exists" });
+    }
+    console.error("Error in uploadVoice controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function renameVoice(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const voiceId = String(req.params?.voiceId || "").trim();
+    if (!voiceId) return res.status(400).json({ message: "voiceId is required" });
+    if (isDefaultVoiceId(voiceId)) {
+      return res.status(400).json({ message: "Default voices cannot be renamed" });
+    }
+
+    const voiceName = String(req.body?.voiceName || "").trim();
+    if (!voiceName) return res.status(400).json({ message: "voiceName is required" });
+
+    const updated = await AiRobotVoice.findOneAndUpdate(
+      { userId, voiceId },
+      { voiceName },
+      { new: true }
+    ).select("voiceId voiceName createdAt");
+
+    if (!updated) return res.status(404).json({ message: "Voice not found" });
+
+    return res.status(200).json({
+      success: true,
+      voice: {
+        voiceId: updated.voiceId,
+        voiceName: updated.voiceName,
+        createdAt: updated.createdAt,
+      },
+    });
+  } catch (error) {
+    console.error("Error in renameVoice controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function getHistory(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const module = normalizeModule(req.query?.module);
+
+    const history = await AiRobotHistory.findOne({ userId, module }).select("messages updatedAt");
+
+    return res.status(200).json({
+      success: true,
+      module,
+      messages: history?.messages || [],
+      updatedAt: history?.updatedAt || null,
+    });
+  } catch (error) {
+    console.error("Error in getHistory controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function sendMessage(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const message = String(req.body?.message || "").trim();
+    if (!message) return res.status(400).json({ message: "message is required" });
+
+    const module = normalizeModule(req.body?.module);
+    const language = String(req.body?.language || "").trim();
+
+    const history = await AiRobotHistory.findOne({ userId, module }).select("messages");
+    const priorMessages = Array.isArray(history?.messages) ? history.messages : [];
+
+    const systemPrompt = buildSystemPrompt({ module, language });
+
+    const openai = getOpenAIClient();
+    const trimmedContext = priorMessages.slice(-20).map((m) => ({
+      role: m.role,
+      content: m.text,
+    }));
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      temperature: 0.6,
+      messages: [{ role: "system", content: systemPrompt }, ...trimmedContext, { role: "user", content: message }],
+    });
+
+    const reply = completion?.choices?.[0]?.message?.content?.trim() || "";
+
+    await AiRobotHistory.findOneAndUpdate(
+      { userId, module },
+      {
+        $push: {
+          messages: {
+            $each: [
+              { role: "user", text: message },
+              { role: "assistant", text: reply || "" },
+            ],
+          },
+        },
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(200).json({ success: true, module, reply });
+  } catch (error) {
+    console.error("Error in sendMessage controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+export async function stt(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const file = req.file;
+    if (!file?.buffer) {
+      return res.status(400).json({ message: "Audio file is required" });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(500).json({ message: "OPENAI_API_KEY is not set" });
+
+    const form = new FormData();
+    form.append("model", "whisper-1");
+    form.append(
+      "file",
+      new Blob([file.buffer], { type: file.mimetype || "audio/webm" }),
+      file.originalname || "audio.webm"
+    );
+
+    const openaiRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: form,
+    });
+
+    const json = await openaiRes.json().catch(() => null);
+    if (!openaiRes.ok) {
+      return res.status(openaiRes.status).json({
+        message: "Transcription failed",
+        details: json,
+      });
+    }
+
+    const text = String(json?.text || "").trim();
+
+    return res.status(200).json({ success: true, text });
+  } catch (error) {
+    console.error("Error in aiRobot stt controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}
+
+const readerToBuffer = async (reader) => {
+  const chunks = [];
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+};
+
+export async function tts(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { text, voiceId } = req.body || {};
+
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({ message: "text is required" });
+    }
+
+    const selectedVoiceId = String(voiceId || "").trim();
+    if (!selectedVoiceId) {
+      return res.status(400).json({ message: "voiceId is required" });
+    }
+
+    if (!isDefaultVoiceId(selectedVoiceId)) {
+      const owned = await AiRobotVoice.findOne({ userId, voiceId: selectedVoiceId }).select("_id");
+      if (!owned) return res.status(404).json({ message: "Voice not found" });
+    }
+
+    const elevenlabs = getElevenLabsClient();
+    const audio = await elevenlabs.textToSpeech.convert(selectedVoiceId, {
+      text,
+      modelId: "eleven_multilingual_v2",
+      outputFormat: "mp3_44100_128",
+    });
+
+    const reader = audio.getReader();
+    const buffer = await readerToBuffer(reader);
+
+    res.setHeader("Content-Type", "audio/mpeg");
+    return res.status(200).send(buffer);
+  } catch (error) {
+    console.error("Error in aiRobot tts controller", error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+}

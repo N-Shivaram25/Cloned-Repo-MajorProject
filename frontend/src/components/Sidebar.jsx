@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon } from "lucide-react";
+import { BellIcon, HomeIcon, ShipWheelIcon, UsersIcon, BotIcon } from "lucide-react";
 import { useStreamChat } from "../context/StreamChatContext";
 import { useQuery } from "@tanstack/react-query";
 import { getFriendRequests } from "../lib/api";
@@ -85,6 +85,17 @@ const Sidebar = () => {
           <BellIcon className="size-5 text-base-content opacity-70" />
           <span className="flex-1">Notifications</span>
           {notifCount > 0 && <span className="badge badge-primary badge-sm">{notifCount}</span>}
+        </Link>
+
+        <Link
+          to="/ai-robot"
+          onClick={closeDrawer}
+          className={`btn btn-ghost justify-start w-full gap-3 px-3 normal-case ${
+            currentPath === "/ai-robot" ? "btn-active" : ""
+          }`}
+        >
+          <BotIcon className="size-5 text-base-content opacity-70" />
+          <span>AI Robot</span>
         </Link>
       </nav>
 
